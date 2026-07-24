@@ -1,0 +1,43 @@
+name: windows-plugin-response-build
+
+on:
+  push:
+    branches:
+      - fix/windows-plugin-response-buffer
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-amd64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Refresh models catalog
+        shell: bash
+        run: bash .github/scripts/refresh-model-catalogs.sh
+      - name: Test Windows plugin host
+        run: go test ./internal/pluginhost
+      - name: Build Windows executable
+        shell: pwsh
+        run: |
+          $commit = git rev-parse --short HEAD
+          $buildDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+          New-Item -ItemType Directory -Force -Path 'dist' | Out-Null
+          go build `
+            -ldflags "-s -w -X main.Version=7.2.97-plugin-buffer-fix -X main.Commit=$commit -X main.BuildDate=$buildDate" `
+            -o 'dist/cli-proxy-api.exe' ./cmd/server
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-proxy-api-windows-amd64-plugin-buffer-fix
+          path: dist/cli-proxy-api.exe
+          if-no-files-found: error
+          retention-days: 7
